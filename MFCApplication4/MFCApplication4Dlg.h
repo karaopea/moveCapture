@@ -41,4 +41,5 @@ public:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2);
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
+	//static extern int Getshared
 };

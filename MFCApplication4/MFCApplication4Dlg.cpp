@@ -308,10 +308,11 @@ HBITMAP CopySurfaceToBitmap(LPDIRECT3DSURFACE9 pD3DSurface, BYTE *pData, BITMAPI
 
     if (pD3DSurface == NULL)
 	return NULL;
+	
 
-    pD3DSurface->GetDC(&hScrDC);
+    if(FAILED(pD3DSurface->GetDC(&hScrDC)))
+		return NULL;
     hMemDC = CreateCompatibleDC(hScrDC);
-
     D3DSURFACE_DESC desc;
     pD3DSurface->GetDesc( &desc );
 
@@ -492,14 +493,169 @@ HRESULT	InitD3D(HWND hWnd)
 	return S_OK;
 }
 
+
+void writeDX(HWND hwnd)
+{
+	 CoInitialize(NULL);
+
+    LPDIRECT3D9 d3d9;
+    LPDIRECT3DDEVICE9 d3ddev;
+    d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
+
+    int ww = GetSystemMetrics(SM_CXSCREEN);
+    int wh = GetSystemMetrics(SM_CYSCREEN);
+
+    D3DPRESENT_PARAMETERS d3dpp;
+    ZeroMemory(&d3dpp, sizeof(d3dpp));
+    d3dpp.Windowed = TRUE;
+    d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+    d3dpp.BackBufferFormat = D3DFMT_UNKNOWN;
+    d3dpp.BackBufferCount = 1;
+    d3dpp.BackBufferWidth = ww;
+    d3dpp.BackBufferHeight = wh;
+    d3dpp.MultiSampleType = D3DMULTISAMPLE_NONE;
+    d3dpp.MultiSampleQuality = 0;
+    d3dpp.EnableAutoDepthStencil = TRUE;
+    d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
+    d3dpp.hDeviceWindow = hwnd;
+    d3dpp.Flags = D3DPRESENTFLAG_LOCKABLE_BACKBUFFER;
+    d3dpp.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
+    d3dpp.PresentationInterval = D3DPRESENT_INTERVAL_DEFAULT;
+
+    d3d9->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, hwnd, D3DCREATE_HARDWARE_VERTEXPROCESSING, &d3dpp, &d3ddev);
+
+    IDirect3DSurface9* render;
+    IDirect3DSurface9* dest;
+    d3ddev->CreateOffscreenPlainSurface(ww, wh, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM, &dest, NULL);
+    d3ddev->GetRenderTarget(0, &render);
+    d3ddev->GetRenderTargetData(render, dest);
+	d3ddev->GetFrontBufferData(0, dest);
+
+    D3DLOCKED_RECT bits;
+    dest->LockRect(&bits, NULL, D3DLOCK_READONLY);
+
+    // If a capture is successful, colors other than black(0x00000000) should enter. 
+    for(int i = 0; i < 100; i++){
+        printf("%02X ", *((BYTE*)bits.pBits + i));
+    }
+
+
+	CRect rct;
+	if(hwnd)
+		::GetWindowRect(hwnd, &rct);
+	else
+		return ;
+
+	BITMAPINFO dib_define;
+	ZeroMemory(&dib_define,sizeof(BITMAPINFO));
+	dib_define.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	dib_define.bmiHeader.biWidth = rct.right - rct.left;
+	dib_define.bmiHeader.biHeight = rct.bottom - rct.top;
+	dib_define.bmiHeader.biPlanes = 1;
+	dib_define.bmiHeader.biBitCount = 32;
+	dib_define.bmiHeader.biCompression = BI_RGB;
+	dib_define.bmiHeader.biSizeImage = ((((rct.right - rct.left) * 24 + 31) & ~31) >> 3) * (rct.bottom - rct.top);
+	dib_define.bmiHeader.biXPelsPerMeter = 0;
+	dib_define.bmiHeader.biYPelsPerMeter = 0;
+	dib_define.bmiHeader.biClrImportant = 0;
+	dib_define.bmiHeader.biClrUsed = 0;
+
+	
+
+
+	
+
+
+    dest->UnlockRect();
+
+	HBITMAP hBitmap = CopySurfaceToBitmap(dest, (LPBYTE)bits.pBits, &dib_define);
+	CTime time = CTime::GetCurrentTime();
+	TCHAR fileName[256];
+	wsprintf(fileName, _T("%02d%02d.bmp"),time.GetMinute(), time.GetSecond());
+	Save(hBitmap, fileName);
+
+    CoUninitialize();
+	
+
+	
+
+    render->Release();
+    dest->Release();
+    d3ddev->Release();
+    d3d9->Release();
+
+	
+}
+
 HDC		hBackDC=NULL;
 LPVOID	pBits=NULL;
 HBITMAP	hBackBitmap=NULL;
 HBITMAP	hOldBitmap=NULL;
-
 void captureDX(HWND hWnd)
 {
-    CoInitialize(NULL);
+    
+	CRect rct;
+		if(hWnd)
+			::GetWindowRect(hWnd, &rct);
+		else
+			return ;
+
+			BITMAPINFO dib_define;
+	ZeroMemory(&dib_define,sizeof(BITMAPINFO));
+	dib_define.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	dib_define.bmiHeader.biWidth = rct.right - rct.left;
+	dib_define.bmiHeader.biHeight = rct.bottom - rct.top;
+	dib_define.bmiHeader.biPlanes = 1;
+	dib_define.bmiHeader.biBitCount = 24;
+	dib_define.bmiHeader.biCompression = BI_RGB;
+	dib_define.bmiHeader.biSizeImage = ((((rct.right - rct.left) * 24 + 31) & ~31) >> 3) * (rct.bottom - rct.top);
+	dib_define.bmiHeader.biXPelsPerMeter = 0;
+	dib_define.bmiHeader.biYPelsPerMeter = 0;
+	dib_define.bmiHeader.biClrImportant = 0;
+	dib_define.bmiHeader.biClrUsed = 0;
+	///////////////////////////////////
+
+	if(FAILED(g_pd3dDevice->GetFrontBufferData(0, g_pSurface)))
+		return;			
+	//D3DXSaveSurfaceToFile(szFileName, D3DXIFF_BMP, g_pSurface,NULL,NULL);		//Save to File
+
+	D3DLOCKED_RECT	lockedRect;
+	if(FAILED(g_pSurface->LockRect(&lockedRect,NULL,D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_NOSYSLOCK|D3DLOCK_READONLY)))
+	{
+		return ;
+	}
+	else
+	{	
+		int ScreenWidth = rct.right - rct.left;
+		int ScreenHeight = rct.bottom - rct.top;
+		for( int i=0 ; i < ScreenHeight ; i++)
+		{
+		   memcpy((BYTE*) pBits +(ScreenHeight - i - 1) * ScreenWidth * 24/8 , (BYTE*)  lockedRect.pBits + i* lockedRect.Pitch , ScreenWidth* 24/8);
+		}
+
+
+		
+		//SaveToFile(hBitmap, fileName);
+	}
+
+	HBITMAP hBitmap = CopySurfaceToBitmap(g_pSurface, (LPBYTE)pBits, &dib_define);
+	g_pSurface->UnlockRect();
+
+
+	
+	
+
+
+	CTime time = CTime::GetCurrentTime();
+	TCHAR fileName[256];
+	wsprintf(fileName, _T("%02d%02d.bmp"),time.GetMinute(), time.GetSecond());
+	Save(hBitmap, fileName);
+
+
+
+	return;
+
+	CoInitialize(NULL);
 
     HWND hwnd = hWnd;
 
@@ -508,76 +664,6 @@ void captureDX(HWND hWnd)
 
     d3d9 = Direct3DCreate9(D3D_SDK_VERSION);
     d3d9->GetAdapterDisplayMode(D3DADAPTER_DEFAULT,&ddm);
-
-	///////////////////////////////////
-
-	g_pd3dDevice->GetFrontBufferData(0, g_pSurface);			
-	//D3DXSaveSurfaceToFile(szFileName, D3DXIFF_BMP, g_pSurface,NULL,NULL);		//Save to File
-
-	D3DLOCKED_RECT	lockedRect;
-	if(FAILED(g_pSurface->LockRect(&lockedRect,NULL,D3DLOCK_NO_DIRTY_UPDATE|D3DLOCK_NOSYSLOCK|D3DLOCK_READONLY)))
-	{
-	}
-	else
-	{	
-		CRect rct;
-		if(hWnd)
-			::GetWindowRect(hWnd, &rct);
-		else
-			return ;
-
-		BITMAPINFO dib_define;
-		ZeroMemory(&dib_define,sizeof(BITMAPINFO));
-		dib_define.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-		dib_define.bmiHeader.biWidth = rct.right - rct.left;
-		dib_define.bmiHeader.biHeight = rct.bottom - rct.top;
-		dib_define.bmiHeader.biPlanes = 1;
-		dib_define.bmiHeader.biBitCount = 24;
-		dib_define.bmiHeader.biCompression = BI_RGB;
-		dib_define.bmiHeader.biSizeImage = ((((rct.right - rct.left) * 24 + 31) & ~31) >> 3) * (rct.bottom - rct.top);
-		dib_define.bmiHeader.biXPelsPerMeter = 0;
-		dib_define.bmiHeader.biYPelsPerMeter = 0;
-		dib_define.bmiHeader.biClrImportant = 0;
-		dib_define.bmiHeader.biClrUsed = 0;
-
-		//BITMAPINFO	bmpInfo;
-		//ZeroMemory(&bmpInfo,sizeof(BITMAPINFO));
-		//bmpInfo.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
-		//bmpInfo.bmiHeader.biBitCount=BITSPERPIXEL;
-		//bmpInfo.bmiHeader.biCompression = BI_RGB;
-		//bmpInfo.bmiHeader.biWidth=GetSystemMetrics(SM_CXSCREEN);
-		//bmpInfo.bmiHeader.biHeight=GetSystemMetrics(SM_CYSCREEN);
-		//bmpInfo.bmiHeader.biPlanes=1;
-		//bmpInfo.bmiHeader.biSizeImage=abs(bmpInfo.bmiHeader.biHeight)*bmpInfo.bmiHeader.biWidth*bmpInfo.bmiHeader.biBitCount/8;
-
-		HDC	hdc=GetDC(hWnd);
-		hBackDC=CreateCompatibleDC(hdc);
-		hBackBitmap=CreateDIBSection(hdc,&dib_define,DIB_RGB_COLORS,&pBits,NULL,0);
-		if(hBackBitmap==NULL)
-		{
-		}
-		ReleaseDC(hWnd,hdc);
-
-		for(int i=0;i<rct.bottom;i++)
-		{
-			memcpy((BYTE*)pBits+(rct.bottom-i-1)*rct.right*32/8,(BYTE*)lockedRect.pBits+i*lockedRect.Pitch,rct.right*32/8);//g_d3dpp.BackBufferHeight*g_d3dpp.BackBufferWidth*4);				
-		}
-		HBITMAP hBitmap = CopySurfaceToBitmap(g_pSurface, (LPBYTE)pBits, &dib_define);
-
-
-		CTime time = CTime::GetCurrentTime();
-		TCHAR fileName[256];
-		wsprintf(fileName, _T("%02d%02d.bmp"),time.GetMinute(), time.GetSecond());
-		Save(hBitmap, fileName);
-		//SaveToFile(hBitmap, fileName);
-	}
-
-	g_pSurface->UnlockRect();
-	
-
-	return;
-
-
     D3DPRESENT_PARAMETERS d3dpp;
     ZeroMemory(&d3dpp,sizeof(D3DPRESENT_PARAMETERS));
     d3dpp.Windowed = TRUE;
@@ -777,8 +863,9 @@ void CMFCApplication4Dlg::OnHotKey(UINT nHotKeyId, UINT nKey1, UINT nKey2)
 
 			if (SUCCEEDED(hr))
 			{
-				InitD3D(this->GetSafeHwnd());
-				captureDX(this->GetSafeHwnd());
+				writeDX(this->GetSafeHwnd());
+				//InitD3D(this->GetSafeHwnd());
+				//captureDX(this->GetSafeHwnd());
 				// ...
 			}
 		}
